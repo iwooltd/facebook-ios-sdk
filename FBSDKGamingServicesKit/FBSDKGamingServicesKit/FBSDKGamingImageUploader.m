@@ -20,37 +20,61 @@
 
 #import "FBSDKCoreKitInternalImport.h"
 #import "FBSDKGamingImageUploaderConfiguration.h"
-#import "FBSDKGamingServiceController.h"
+#import "FBSDKGamingServiceControllerCreating.h"
+#import "FBSDKGamingServiceControllerFactory.h"
 
 @interface FBSDKGamingImageUploader () <FBSDKGraphRequestConnectionDelegate>
 {
   FBSDKGamingServiceProgressHandler _progressHandler;
 }
 
+@property (nonnull, nonatomic) id<FBSDKGamingServiceControllerCreating> factory;
+
 @end
 
 @implementation FBSDKGamingImageUploader
 
+// Transitional singleton introduced as a way to change the usage semantics
+// from a type-based interface to an instance-based interface.
++ (FBSDKGamingImageUploader *)shared
+{
+  static dispatch_once_t nonce;
+  static id instance;
+  dispatch_once(&nonce, ^{
+    instance = [self new];
+  });
+  return instance;
+}
+
 - (instancetype)init
 {
-  return [super init];
+  return [self initWithGamingServiceControllerFactory:[FBSDKGamingServiceControllerFactory new]];
 }
 
-+ (void)uploadImageWithConfiguration:(FBSDKGamingImageUploaderConfiguration *_Nonnull)configuration
-                andCompletionHandler:(FBSDKGamingServiceCompletionHandler _Nonnull)completionHandler
+- (instancetype)initWithProgressHandler:(FBSDKGamingServiceProgressHandler _Nullable)progressHandler
 {
-  return
-  [self
-   uploadImageWithConfiguration:configuration
-   completionHandler:^(BOOL success, id _Nullable result, NSError *_Nullable error) {
-     if (completionHandler) {
-       completionHandler(success, error);
-     }
-   }
-   andProgressHandler:nil];
+  if ((self = [self initWithGamingServiceControllerFactory:[FBSDKGamingServiceControllerFactory new]])) {
+    _progressHandler = progressHandler;
+  }
+  return self;
+}
+
+- (instancetype)initWithGamingServiceControllerFactory:(id<FBSDKGamingServiceControllerCreating>)factory
+{
+  if ((self = [super init])) {
+    _factory = factory;
+  }
+  return self;
 }
 
 + (void)uploadImageWithConfiguration:(FBSDKGamingImageUploaderConfiguration *_Nonnull)configuration
+          andResultCompletionHandler:(FBSDKGamingServiceResultCompletionHandler _Nonnull)completionHandler
+{
+  [self.shared uploadImageWithConfiguration:configuration
+                 andResultCompletionHandler:completionHandler];
+}
+
+- (void)uploadImageWithConfiguration:(FBSDKGamingImageUploaderConfiguration *_Nonnull)configuration
           andResultCompletionHandler:(FBSDKGamingServiceResultCompletionHandler _Nonnull)completionHandler
 {
   return
@@ -61,6 +85,15 @@
 }
 
 + (void)uploadImageWithConfiguration:(FBSDKGamingImageUploaderConfiguration *_Nonnull)configuration
+                   completionHandler:(FBSDKGamingServiceResultCompletionHandler _Nonnull)completionHandler
+                  andProgressHandler:(FBSDKGamingServiceProgressHandler _Nullable)progressHandler
+{
+  [self.shared uploadImageWithConfiguration:configuration
+                          completionHandler:completionHandler
+                         andProgressHandler:progressHandler];
+}
+
+- (void)uploadImageWithConfiguration:(FBSDKGamingImageUploaderConfiguration *_Nonnull)configuration
                    completionHandler:(FBSDKGamingServiceResultCompletionHandler _Nonnull)completionHandler
                   andProgressHandler:(FBSDKGamingServiceProgressHandler _Nullable)progressHandler
 {
@@ -89,7 +122,7 @@
   }
 
   FBSDKGraphRequestConnection *const connection =
-  [[FBSDKGraphRequestConnection alloc] init];
+  [FBSDKGraphRequestConnection new];
 
   FBSDKGamingImageUploader *const uploader =
   [[FBSDKGamingImageUploader alloc]
@@ -98,6 +131,7 @@
   connection.delegate = uploader;
   [FBSDKInternalUtility registerTransientObject:connection.delegate];
 
+  __weak typeof(self) weakSelf = self;
   [connection
    addRequest:
    [[FBSDKGraphRequest alloc]
@@ -107,7 +141,7 @@
       @"picture" : UIImagePNGRepresentation(configuration.image)
     }
     HTTPMethod:FBSDKHTTPMethodPOST]
-   completionHandler:^(FBSDKGraphRequestConnection *_Nullable graphConnection, id _Nullable result, NSError *_Nullable error) {
+   completion:^(id<FBSDKGraphRequestConnecting> _Nullable graphConnection, id _Nullable result, NSError *_Nullable error) {
      [FBSDKInternalUtility unregisterTransientObject:graphConnection.delegate];
 
      if (error || !result) {
@@ -127,9 +161,9 @@
        return;
      }
 
-     FBSDKGamingServiceController *const controller =
-     [[FBSDKGamingServiceController alloc]
-      initWithServiceType:FBSDKGamingServiceTypeMediaAsset
+     id<FBSDKGamingServiceController> const controller =
+     [weakSelf.factory
+      createWithServiceType:FBSDKGamingServiceTypeMediaAsset
       completionHandler:completionHandler
       pendingResult:result];
 
@@ -137,14 +171,6 @@
    }];
 
   [connection start];
-}
-
-- (instancetype)initWithProgressHandler:(FBSDKGamingServiceProgressHandler _Nullable)progressHandler
-{
-  if (self = [super init]) {
-    _progressHandler = progressHandler;
-  }
-  return self;
 }
 
 #pragma mark - FBSDKGraphRequestConnectionDelegate

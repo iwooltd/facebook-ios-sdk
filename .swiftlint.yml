@@ -35,7 +35,14 @@ nesting:
 private_outlet:
   allow_private_set: true
 type_name:
-  excluded: [RawAppEventsConfigurationResponseFixtures]
+  excluded: [
+    RawAppEventsConfigurationResponseFixtures,
+    GraphRequestPiggybackManagerProviderTests
+  ]
+
+# Xcode fixits insert these as "public override" vs "override public" so overriding Swiftlint's defaullt of "override, acl, ..." to "acl, override, ..."
+modifier_order:
+  preferred_modifier_order: [acl, override, setterACL, dynamic, mutators, lazy, final, required, convenience, typeMethods, owned]
 
 disabled_rules:
   - attributes
@@ -45,13 +52,12 @@ disabled_rules:
   - explicit_enum_raw_value
   - explicit_top_level_acl
   - explicit_type_interface
-  # TODO: Reenable this once build pipeline can guarantee updated swift versions
-  - implicit_return
   - no_extension_access_modifier
   - number_separator
   - prefixed_toplevel_constant
   - statement_position
   - switch_case_on_newline
+  - weak_delegate
   # TODO: All below to move to Opt In
   - discouraged_optional_boolean
   - discouraged_optional_collection
@@ -173,6 +179,5 @@ opt_in_rules:
   - vertical_parameter_alignment_on_call
   - vertical_whitespace
   - void_return
-  - weak_delegate
   - xctfail_message
   - yoda_condition

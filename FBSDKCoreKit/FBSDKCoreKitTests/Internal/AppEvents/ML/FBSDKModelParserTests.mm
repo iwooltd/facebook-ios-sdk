@@ -40,7 +40,7 @@ using std::vector;
 
 - (void)setUp
 {
-  _mockWeightsInfoDict = [[NSMutableDictionary alloc] init];
+  _mockWeightsInfoDict = [NSMutableDictionary new];
 }
 
 - (void)tearDown
@@ -71,7 +71,7 @@ using std::vector;
 - (void)testWeightsForWrongInfo
 {
   [_mockWeightsInfoDict addEntriesFromDictionary:[FBSDKModelParser getMTMLWeightsInfo]];
-  [_mockWeightsInfoDict addEntriesFromDictionary:@{@"embed.weight" : @[@(1), @(1)]}];
+  [_mockWeightsInfoDict addEntriesFromDictionary:@{@"embed.weight" : @[@1, @1]}];
 
   bool validatedRes = [FBSDKModelParser validateWeights:[self _mockWeightsWithRefDict:_mockWeightsInfoDict]
                                                  forKey:@"MTML"];

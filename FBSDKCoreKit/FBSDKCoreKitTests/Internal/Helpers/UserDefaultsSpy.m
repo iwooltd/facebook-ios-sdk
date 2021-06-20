@@ -18,7 +18,7 @@
 
 #import "UserDefaultsSpy.h"
 
-#import "FBSDKTypeUtility.h"
+#import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
 @implementation UserDefaultsSpy
 
@@ -32,14 +32,23 @@
   self = [super init];
   if (self) {
     _capturedValues = [NSDictionary dictionary];
+    _stringForKeyCallback = ^(NSString *key) { return key; };
   }
 
   return self;
 }
 
+- (NSString *)stringForKey:(NSString *)defaultName
+{
+  return _stringForKeyCallback(defaultName);
+}
+
 - (id)objectForKey:(NSString *)defaultName
 {
   _capturedObjectRetrievalKey = defaultName;
+  NSMutableArray *tmp = [NSMutableArray arrayWithArray:_capturedObjectRetrievalKeys.copy];
+  [tmp addObject:defaultName];
+  _capturedObjectRetrievalKeys = tmp;
   return [_capturedValues objectForKey:defaultName];
 }
 
@@ -54,6 +63,11 @@
   }
 
   _capturedValues = tmp;
+
+  NSMutableArray *keys = [NSMutableArray arrayWithArray:_capturedSetObjectKeys.copy];
+  [keys addObject:defaultName];
+  _capturedSetObjectKeys = keys;
+  _capturedSetObjectKey = defaultName;
 }
 
 @end

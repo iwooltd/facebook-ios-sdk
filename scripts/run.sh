@@ -54,12 +54,14 @@ main() {
     SDK_SCRIPTS_DIR=$(realpath "$(dirname "${BASH_SOURCE[0]}")")
     SDK_DIR="$(dirname "$SDK_SCRIPTS_DIR")"
 
+    CORE_KIT_BASICS="FBSDKCoreKit_Basics"
     CORE_KIT="FBSDKCoreKit"
     LOGIN_KIT="FBSDKLoginKit"
     SHARE_KIT="FBSDKShareKit"
     GAMING_SERVICES_KIT="FBSDKGamingServicesKit"
 
     SDK_BASE_KITS=(
+      "$CORE_KIT_BASICS"
       "$CORE_KIT"
       "$LOGIN_KIT"
       "$SHARE_KIT"
@@ -73,16 +75,16 @@ main() {
 
     SDK_VERSION_FILES=(
       "Configurations/Version.xcconfig"
-      "FBSDKCoreKit/FBSDKCoreKit/FBSDKCoreKit.h"
+      "FBSDKCoreKit/FBSDKCoreKit/FBSDKCoreKitVersions.h"
       "Sources/FBSDKCoreKit_Basics/FBSDKCrashHandler.m"
     )
 
     SDK_GRAPH_API_VERSION_FILES=(
-      "FBSDKCoreKit/FBSDKCoreKit/FBSDKCoreKit.h"
+      "FBSDKCoreKit/FBSDKCoreKit/FBSDKCoreKitVersions.h"
       "FBSDKCoreKit/FBSDKCoreKitTests/FBSDKGraphRequestTests.m"
     )
 
-    SDK_MAIN_VERSION_FILE="FBSDKCoreKit/FBSDKCoreKit/FBSDKCoreKit.h"
+    SDK_MAIN_VERSION_FILE="FBSDKCoreKit/FBSDKCoreKit/FBSDKCoreKitVersions.h"
 
     SDK_FRAMEWORK_NAME="FacebookSDK"
 
@@ -90,6 +92,7 @@ main() {
     SDK_POD_SPECS=("${SDK_POD_SPECS[@]/%/.podspec}")
 
     SDK_LINT_POD_SPECS=(
+      "FBSDKCoreKit_Basics.podspec"
       "FBSDKCoreKit.podspec"
       "FBSDKLoginKit.podspec"
       "FBSDKShareKit.podspec"
@@ -363,16 +366,18 @@ lint_sdk() {
 
       set +e
 
-      if [ "$spec" != FBSDKCoreKit.podspec ]; then
-        dependent_spec="--include-podspecs=FBSDKCoreKit.podspec"
+      if [ "$spec" == FBSDKCoreKit.podspec ]; then
+        dependent_spec="--include-podspecs=FBSDKCoreKit_Basics.podspec"
+      else
+        dependent_spec="--include-podspecs=FBSDK{CoreKit,CoreKit_Basics}.podspec"
       fi
 
       if [ "$spec" == FBSDKTVOSKit.podspec ]; then
-        dependent_spec="--include-podspecs=FBSDK{Core,Share,Login}Kit.podspec"
+        dependent_spec="--include-podspecs=FBSDK{CoreKit,ShareKit,LoginKit,CoreKit_Basics}.podspec"
       fi
 
       if [ "$spec" == FBSDKGamingServicesKit.podspec ]; then
-        dependent_spec="--include-podspecs=FBSDK{Core,Share}Kit.podspec"
+        dependent_spec="--include-podspecs=FBSDK{CoreKit,ShareKit,CoreKit_Basics}.podspec"
       fi
 
       echo ""
@@ -405,20 +410,11 @@ lint_sdk() {
     fi
   }
 
-  lint_swift() {
-    if command -v swiftlint >/dev/null; then
-      swiftlint
-    else
-      echo "warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint"
-    fi
-  }
-
   local lint_type=${1:-}
   if [ -n "$lint_type" ]; then shift; fi
 
   case "$lint_type" in
   "cocoapods") lint_cocoapods --allow-warnings "$@";;
-  "swift") lint_swift "$@" ;;
   *) echo "Unsupported Lint: $lint_type" ;;
   esac
 }
@@ -441,26 +437,6 @@ release_sdk() {
 
     # Release frameworks in static
     release_static() {
-      release_basics() {
-        xcodebuild clean build \
-         -workspace FacebookSDK.xcworkspace \
-         -scheme BuildCoreKitBasics \
-         -configuration Release | xcpretty
-
-        kit="FBSDKCoreKit_Basics"
-        cd build || exit
-
-        mkdir -p Release/"$kit"/iOS
-        mv FBSDKCoreKit.framework Release/"$kit"/iOS
-        mkdir -p Release/"$kit"/tvOS
-        mv tv/FBSDKCoreKit.framework Release/"$kit"/tvOS
-        cd Release || exit
-        zip -r -m "$kit".zip "$kit"
-        cd ..
-
-        cd ..
-      }
-
       xcodebuild clean build \
        -workspace FacebookSDK.xcworkspace \
        -scheme BuildAllKits \
@@ -472,7 +448,8 @@ release_sdk() {
        -configuration Release | xcpretty
 
       cd build || exit
-      zip -r FacebookSDK_static.zip ./*.framework ./*/*.framework
+      cp ../LICENSE ./ # LICENSE file
+      zip -r FacebookSDK_static.zip ./*.framework ./*/*.framework LICENSE
       mv FacebookSDK_Static.zip Release/
       for kit in "${SDK_KITS[@]}"; do
         if [ ! -d "$kit".framework ] \
@@ -494,8 +471,6 @@ release_sdk() {
         cd ..
       done
       cd ..
-
-      release_basics
     }
 
     local release_type=${1:-}
@@ -649,7 +624,7 @@ verify_spm_headers() {
 
       mkdir -p include
 
-      headers=$(find . -name "*.h" -type f -not -path "./include/*" -not -path "**/Internal/*" -not -path "**/Basics/*")
+      headers=$(find . -name "*.h" -type f -not -path "./include/*" -not -path "**/Internal/*")
       echo "$(basename ${headers} )" | sort >| headers.txt
 
       cat headers.txt

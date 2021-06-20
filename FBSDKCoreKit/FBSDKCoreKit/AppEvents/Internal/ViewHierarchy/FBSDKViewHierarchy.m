@@ -26,31 +26,15 @@
 
  #import <objc/runtime.h>
 
+ #import "FBSDKAppEventsUtility.h"
  #import "FBSDKCodelessPathComponent.h"
- #import "FBSDKCoreKit+Internal.h"
+ #import "FBSDKCoreKitBasicsImport.h"
+ #import "FBSDKUtility.h"
  #import "FBSDKViewHierarchyMacros.h"
 
  #define MAX_VIEW_HIERARCHY_LEVEL 35
 
 NS_ASSUME_NONNULL_BEGIN
-
-void fb_dispatch_on_main_thread(dispatch_block_t block)
-{
-  if (block != nil) {
-    if ([NSThread isMainThread]) {
-      block();
-    } else {
-      dispatch_async(dispatch_get_main_queue(), block);
-    }
-  }
-}
-
-void fb_dispatch_on_default_thread(dispatch_block_t block)
-{
-  if (block != nil) {
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), block);
-  }
-}
 
 _Nullable id getVariableFromInstance(NSObject *instance, NSString *variableName);
 

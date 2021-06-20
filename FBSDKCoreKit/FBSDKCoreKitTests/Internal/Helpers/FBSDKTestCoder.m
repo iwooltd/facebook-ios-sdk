@@ -57,14 +57,21 @@
 {
   self.decodedObject[key] = aClass;
 
-  return key;
+  return nil;
 }
 
 - (id)decodeObjectOfClasses:(NSSet<Class> *)classes forKey:(NSString *)key
 {
   self.decodedObject[key] = classes;
 
-  return key;
+  return nil;
+}
+
+- (id)decodeObjectForKey:(NSString *)key
+{
+  self.decodedObject[key] = @"decodeObjectForKey";
+
+  return nil;
 }
 
 - (BOOL)decodeBoolForKey:(NSString *)key

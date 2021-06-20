@@ -24,8 +24,12 @@
 
 @interface FBSDKLoginCompletionParameters ()
 
+@property (nonatomic) FBSDKAuthenticationToken *authenticationToken;
+@property (nonatomic) FBSDKProfile *profile;
+
 @property (nonatomic, copy) NSString *accessTokenString;
 @property (nonatomic, copy) NSString *nonceString;
+@property (nonatomic, copy) NSString *authenticationTokenString;
 
 @property (nonatomic, copy) NSSet *permissions;
 @property (nonatomic, copy) NSSet *declinedPermissions;
@@ -48,8 +52,6 @@
 @interface FBSDKLoginURLCompleter ()
 
 @property (nonatomic, strong) FBSDKLoginCompletionParameters *parameters;
-
-- (void)exchangeNonceForTokenWithHandler:(FBSDKLoginCompletionParametersBlock)handler;
 
 @end
 

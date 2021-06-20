@@ -3,7 +3,7 @@
 Pod::Spec.new do |s|
 
   s.name         = 'FacebookSDK'
-  s.version      = '8.2.0'
+  s.version      = '11.0.0'
   s.summary      = 'Official Facebook SDK for iOS to access Facebook Platform'
 
   s.description  = <<-DESC
@@ -21,31 +21,48 @@ Pod::Spec.new do |s|
   s.ios.deployment_target = '9.0'
   s.tvos.deployment_target = '10.0'
 
-  s.source       = { :git => 'https://github.com/facebook/facebook-ios-sdk.git',
-                     :tag => "v#{s.version}" }
+  s.source       = { :http => "https://github.com/facebook/facebook-ios-sdk/releases/download/v#{s.version}/FacebookSDK_Static.zip" }
 
-  s.ios.weak_frameworks = 'Accounts', 'Social', 'Security', 'QuartzCore', 'CoreGraphics', 'UIKit', 'Foundation', 'AudioToolbox', 'WebKit'
+  s.ios.weak_frameworks = 'Accelerate', 'Accounts', 'Social', 'Security', 'QuartzCore', 'CoreGraphics', 'UIKit', 'Foundation', 'AudioToolbox', 'WebKit'
   s.tvos.weak_frameworks = 'Security', 'QuartzCore', 'CoreGraphics', 'UIKit', 'Foundation', 'AudioToolbox'
 
-  s.requires_arc = true
+  s.swift_version = '5.0'
 
-  s.default_subspecs = 'CoreKit'
+  s.pod_target_xcconfig = {
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]': 'arm64',
+    'EXCLUDED_ARCHS[sdk=appletvsimulator*]' => 'arm64',
+  }
+  s.user_target_xcconfig = {
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]': 'arm64',
+    'EXCLUDED_ARCHS[sdk=appletvsimulator*]' => 'arm64'
+  }
 
+  s.subspec 'Basics' do |ss|
+    ss.ios.vendored_framework = 'FBSDKCoreKit_Basics.framework'
+    ss.tvos.vendored_framework = 'tv/FBSDKCoreKit_Basics.framework'
+  end
   s.subspec 'CoreKit' do |ss|
-    ss.dependency 'FBSDKCoreKit', "~> #{s.version}"
+    ss.ios.dependency 'FacebookSDK/Basics'
+    ss.ios.vendored_framework = 'FBSDKCoreKit.framework'
+
+    ss.tvos.dependency 'FacebookSDK/Basics'
+    ss.tvos.vendored_framework = 'tv/FBSDKCoreKit.framework'
   end
   s.subspec 'LoginKit' do |ss|
     ss.dependency 'FacebookSDK/CoreKit'
-    ss.dependency 'FBSDKLoginKit', "~> #{s.version}"
+    ss.ios.vendored_framework = 'FBSDKLoginKit.framework'
+    ss.tvos.vendored_framework = 'tv/FBSDKLoginKit.framework'
   end
   s.subspec 'ShareKit' do |ss|
     ss.dependency 'FacebookSDK/CoreKit'
-    ss.dependency 'FBSDKShareKit', "~> #{s.version}"
+    ss.ios.vendored_framework = 'FBSDKShareKit.framework'
+    ss.tvos.vendored_framework = 'tv/FBSDKShareKit.framework'
   end
   s.subspec 'TVOSKit' do |ss|
     ss.platform = :tvos
+    ss.dependency 'FacebookSDK/CoreKit'
     ss.dependency 'FacebookSDK/ShareKit'
     ss.dependency 'FacebookSDK/LoginKit'
-    ss.dependency 'FBSDKTVOSKit', "~> #{s.version}"
+    ss.vendored_framework = 'tv/FBSDKTVOSKit.framework'
   end
 end

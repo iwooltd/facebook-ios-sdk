@@ -16,22 +16,22 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#import <OCMock/OCMock.h>
 #import <XCTest/XCTest.h>
 
 #if !TARGET_OS_TV
 
- #import <StoreKit/StoreKit.h>
-
+ #import "FBSDKConversionValueUpdating.h"
+ #import "FBSDKCoreKitTests-Swift.h"
  #import "FBSDKSKAdNetworkConversionConfiguration.h"
  #import "FBSDKSKAdNetworkReporter.h"
+ #import "FBSDKSKAdNetworkReporter+Internal.h"
  #import "FBSDKSettings+Internal.h"
- #import "FBSDKTestCase.h"
  #import "UserDefaultsSpy.h"
 
 static NSString *const FBSDKSettingsInstallTimestamp = @"com.facebook.sdk:FBSDKSettingsInstallTimestamp";
 static NSString *const FBSDKSKAdNetworkReporterKey = @"com.facebook.sdk:FBSDKSKAdNetworkReporter";
 
+typedef void (^FBSDKSKAdNetworkReporterBlock)(void);
 @interface FBSDKSKAdNetworkReporter ()
 
 + (void)setConfiguration:(FBSDKSKAdNetworkConversionConfiguration *)configuration;
@@ -44,9 +44,17 @@ static NSString *const FBSDKSKAdNetworkReporterKey = @"com.facebook.sdk:FBSDKSKA
 
 + (void)setSKAdNetworkReportEnabled:(BOOL)enabled;
 
++ (void)_loadConfigurationWithBlock:(FBSDKSKAdNetworkReporterBlock)block;
++ (void)configureWithRequestProvider:(id<FBSDKGraphRequestProviding>)requestProvider
+                               store:(id<FBSDKDataPersisting>)store;
++ (id<FBSDKGraphRequestProviding>)requestProvider;
++ (id<FBSDKDataPersisting>)store;
++ (Class<FBSDKConversionValueUpdating>)conversionValueUpdatable;
++ (void)reset;
+
 @end
 
-@interface FBSDKSKAdNetworkReporterTests : FBSDKTestCase
+@interface FBSDKSKAdNetworkReporterTests : XCTestCase
 
 @end
 
@@ -59,15 +67,15 @@ static NSString *const FBSDKSKAdNetworkReporterKey = @"com.facebook.sdk:FBSDKSKA
 - (void)setUp
 {
   [super setUp];
-
+  [FBSDKSKAdNetworkReporter reset];
+  [TestConversionValueUpdating reset];
   userDefaultsSpy = [UserDefaultsSpy new];
-  [self stubUserDefaultsWith:userDefaultsSpy];
 
   NSDictionary *json = @{
     @"data" : @[@{
-                  @"timer_buckets" : @(1),
-                  @"timer_interval" : @(1000),
-                  @"cutoff_time" : @(1),
+                  @"timer_buckets" : @1,
+                  @"timer_interval" : @1000,
+                  @"cutoff_time" : @1,
                   @"default_currency" : @"usd",
                   @"conversion_value_rules" : @[],
     }]
@@ -77,12 +85,15 @@ static NSString *const FBSDKSKAdNetworkReporterKey = @"com.facebook.sdk:FBSDKSKA
   [FBSDKSKAdNetworkReporter _loadReportData];
   [FBSDKSKAdNetworkReporter setSKAdNetworkReportEnabled:YES];
 
-  [self stubLoadingAdNetworkReporterConfiguration];
+  TestGraphRequestFactory *requestProvider = [TestGraphRequestFactory new];
+  [FBSDKSKAdNetworkReporter configureWithRequestProvider:requestProvider store:userDefaultsSpy conversionValueUpdatable:TestConversionValueUpdating.class];
 }
 
 - (void)tearDown
 {
   [super tearDown];
+
+  [FBSDKSKAdNetworkReporter reset];
 }
 
 - (void)testShouldCutoffWithoutTimestampWithoutCutoffTime
@@ -138,7 +149,7 @@ static NSString *const FBSDKSKAdNetworkReporterKey = @"com.facebook.sdk:FBSDKSKA
   [FBSDKSKAdNetworkReporter setConfiguration:defaultConfiguration];
 
   // Case 1: refresh install
-  [FBSDKSettings recordInstall];
+  [FBSDKSettings.sharedSettings recordInstall];
   XCTAssertFalse([FBSDKSKAdNetworkReporter _shouldCutoff]);
 
   // Case 2: timestamp is already expired
@@ -146,16 +157,15 @@ static NSString *const FBSDKSKAdNetworkReporterKey = @"com.facebook.sdk:FBSDKSKA
   NSDateComponents *addComponents = [NSDateComponents new];
   addComponents.day = -2;
   NSDate *expiredDate = [calendar dateByAddingComponents:addComponents toDate:[NSDate date] options:0];
-  [[NSUserDefaults standardUserDefaults] setObject:expiredDate forKey:FBSDKSettingsInstallTimestamp];
+  [userDefaultsSpy setObject:expiredDate forKey:FBSDKSettingsInstallTimestamp];
   XCTAssertTrue([FBSDKSKAdNetworkReporter _shouldCutoff]);
 
-  [[NSUserDefaults standardUserDefaults] removeObjectForKey:FBSDKSettingsInstallTimestamp];
+  [userDefaultsSpy removeObjectForKey:FBSDKSettingsInstallTimestamp];
 }
 
 - (void)testCutoffWhenTimeBucketIsAvailable
 {
   if (@available(iOS 14, *)) {
-    id mock = OCMClassMock([SKAdNetwork class]);
     [FBSDKSKAdNetworkReporter setConfiguration:defaultConfiguration];
     NSDate *today = [NSDate date];
     NSCalendar *calendar = [[NSCalendar alloc] initWithCalendarIdentifier:NSCalendarIdentifierGregorian];
@@ -167,11 +177,19 @@ static NSString *const FBSDKSKAdNetworkReporterKey = @"com.facebook.sdk:FBSDKSKA
     XCTAssertTrue([FBSDKSKAdNetworkReporter _shouldCutoff]);
     [FBSDKSKAdNetworkReporter checkAndRevokeTimer];
     XCTAssertNil([userDefaultsSpy objectForKey:FBSDKSKAdNetworkReporterKey]);
-
-    [mock reject];
-
+    XCTAssertFalse([TestConversionValueUpdating wasUpdateVersionValueCalled]);
     [userDefaultsSpy removeObjectForKey:FBSDKSettingsInstallTimestamp];
   }
+}
+
+- (void)testUpdateConversionValue
+{
+  [FBSDKSKAdNetworkReporter setConfiguration:defaultConfiguration];
+  [FBSDKSKAdNetworkReporter _updateConversionValue:2];
+  XCTAssertTrue(
+    [TestConversionValueUpdating wasUpdateVersionValueCalled],
+    "Should call updateConversionValue when not cutoff"
+  );
 }
 
 - (void)testRecord
@@ -179,13 +197,13 @@ static NSString *const FBSDKSKAdNetworkReporterKey = @"com.facebook.sdk:FBSDKSKA
   if (@available(iOS 14, *)) {
     NSDictionary<NSString *, id> *json = @{
       @"data" : @[@{
-                    @"timer_buckets" : @(1),
-                    @"timer_interval" : @(1000),
-                    @"cutoff_time" : @(1),
+                    @"timer_buckets" : @1,
+                    @"timer_interval" : @1000,
+                    @"cutoff_time" : @1,
                     @"default_currency" : @"USD",
                     @"conversion_value_rules" : @[
                       @{
-                        @"conversion_value" : @(2),
+                        @"conversion_value" : @2,
                         @"events" : @[
                           @{
                             @"event_name" : @"fb_test",
@@ -197,23 +215,58 @@ static NSString *const FBSDKSKAdNetworkReporterKey = @"com.facebook.sdk:FBSDKSKA
     FBSDKSKAdNetworkConversionConfiguration *config = [[FBSDKSKAdNetworkConversionConfiguration alloc] initWithJSON:json];
     [FBSDKSKAdNetworkReporter setConfiguration:config];
     [FBSDKSKAdNetworkReporter _recordAndUpdateEvent:@"fb_test" currency:nil value:nil];
-    [FBSDKSKAdNetworkReporter _recordAndUpdateEvent:@"fb_mobile_purchase" currency:@"USD" value:@(100)];
-    [FBSDKSKAdNetworkReporter _recordAndUpdateEvent:@"fb_mobile_purchase" currency:@"USD" value:@(201)];
+    [FBSDKSKAdNetworkReporter _recordAndUpdateEvent:@"fb_mobile_purchase" currency:@"USD" value:@100];
+    [FBSDKSKAdNetworkReporter _recordAndUpdateEvent:@"fb_mobile_purchase" currency:@"USD" value:@201];
     [FBSDKSKAdNetworkReporter _recordAndUpdateEvent:@"test" currency:nil value:nil];
-    NSData *cache = [[NSUserDefaults standardUserDefaults] objectForKey:FBSDKSKAdNetworkReporterKey];
+    NSData *cache = [userDefaultsSpy objectForKey:FBSDKSKAdNetworkReporterKey];
     XCTAssertNotNil(cache);
-    NSDictionary<NSString *, id> *data = [FBSDKTypeUtility dictionaryValue:[NSKeyedUnarchiver unarchiveObjectWithData:cache]];
+    // cannot adopt NSKeyedUnarchiver.unarchivedDictionaryWithKeysOfClasses::: due to nested collections
+    NSDictionary<NSString *, id> *data = [FBSDKTypeUtility dictionaryValue:[NSKeyedUnarchiver
+                                                                            unarchivedObjectOfClasses:[NSSet setWithArray:
+                                                                                                       @[NSDictionary.class,
+                                                                                                         NSString.class,
+                                                                                                         NSNumber.class,
+                                                                                                         NSDate.class,
+                                                                                                         NSSet.class]]
+                                                                            fromData:cache
+                                                                            error:nil]];
     NSMutableSet<NSString *> *recordedEvents = [FBSDKTypeUtility dictionary:data objectForKey:@"recorded_events" ofType:NSMutableSet.class];
     NSSet<NSString *> *expectedEvents = [NSSet setWithArray:@[@"fb_test", @"fb_mobile_purchase"]];
     XCTAssertTrue([expectedEvents isEqualToSet:recordedEvents]);
     NSMutableDictionary<NSString *, id> *recordedValues = [FBSDKTypeUtility dictionary:data objectForKey:@"recorded_values" ofType:NSMutableDictionary.class];
     NSDictionary<NSString *, id> *expectedValues = @{
       @"fb_mobile_purchase" : @{
-        @"USD" : @(301)
+        @"USD" : @301
       }
     };
     XCTAssertTrue([expectedValues isEqualToDictionary:recordedValues]);
   }
+}
+
+- (void)testConfiguringWithDependencies
+{
+  id<FBSDKGraphRequestProviding> requestProvider = [FBSDKGraphRequestFactory new];
+  id<FBSDKDataPersisting> store = [UserDefaultsSpy new];
+  Class<FBSDKConversionValueUpdating> conversionValueUpdatable = TestConversionValueUpdating.class;
+  [FBSDKSKAdNetworkReporter
+   configureWithRequestProvider:requestProvider
+   store:store
+   conversionValueUpdatable:conversionValueUpdatable];
+  XCTAssertEqualObjects(
+    requestProvider,
+    [FBSDKSKAdNetworkReporter requestProvider],
+    "Should be able to configure a reporter with a request provider"
+  );
+  XCTAssertEqualObjects(
+    store,
+    [FBSDKSKAdNetworkReporter store],
+    "Should be able to configure a reporter with a persistent data store"
+  );
+  XCTAssertEqualObjects(
+    TestConversionValueUpdating.class,
+    [FBSDKSKAdNetworkReporter conversionValueUpdatable],
+    "Should be able to configure a reporter with a Conversion Value Updater"
+  );
 }
 
 @end

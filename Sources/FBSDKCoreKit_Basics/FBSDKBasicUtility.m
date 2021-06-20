@@ -28,6 +28,24 @@
 static NSString *const FBSDK_BASICUTILITY_ANONYMOUSIDFILENAME = @"com-facebook-sdk-PersistedAnonymousID.json";
 static NSString *const FBSDK_BASICUTILITY_ANONYMOUSID_KEY = @"anon_id";
 
+void fb_dispatch_on_main_thread(dispatch_block_t block)
+{
+  if (block != nil) {
+    if ([NSThread isMainThread]) {
+      block();
+    } else {
+      dispatch_async(dispatch_get_main_queue(), block);
+    }
+  }
+}
+
+void fb_dispatch_on_default_thread(dispatch_block_t block)
+{
+  if (block != nil) {
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), block);
+  }
+}
+
 @protocol BASIC_FBSDKError
 
 + (NSError *)invalidArgumentErrorWithName:(NSString *)name value:(id)value message:(NSString *)message;
@@ -87,18 +105,18 @@ static NSString *const FBSDK_BASICUTILITY_ANONYMOUSID_KEY = @"anon_id";
   } else if ([object isKindOfClass:[NSURL class]]) {
     object = ((NSURL *)object).absoluteString;
   } else if ([object isKindOfClass:[NSDictionary class]]) {
-    NSMutableDictionary<NSString *, id> *dictionary = [[NSMutableDictionary alloc] init];
+    NSMutableDictionary<NSString *, id> *dictionary = [NSMutableDictionary new];
     [FBSDKTypeUtility dictionary:(NSDictionary<id, id> *) object enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *dictionaryStop) {
       [FBSDKTypeUtility dictionary:dictionary
                          setObject:[self _convertObjectToJSONObject:obj invalidObjectHandler:invalidObjectHandler stop:&stop]
-                            forKey:[FBSDKTypeUtility stringValue:key]];
+                            forKey:[FBSDKTypeUtility coercedToStringValue:key]];
       if (stop) {
         *dictionaryStop = YES;
       }
     }];
     object = dictionary;
   } else if ([object isKindOfClass:[NSArray class]]) {
-    NSMutableArray<id> *array = [[NSMutableArray alloc] init];
+    NSMutableArray<id> *array = [NSMutableArray new];
     for (id obj in (NSArray *)object) {
       id convertedObj = [self _convertObjectToJSONObject:obj invalidObjectHandler:invalidObjectHandler stop:&stop];
       [FBSDKTypeUtility array:array addObject:convertedObj];
@@ -118,7 +136,7 @@ static NSString *const FBSDK_BASICUTILITY_ANONYMOUSID_KEY = @"anon_id";
 
 + (id)objectForJSONString:(NSString *)string error:(NSError *__autoreleasing *)errorRef
 {
-  NSData *data = [[FBSDKTypeUtility stringValue:string] dataUsingEncoding:NSUTF8StringEncoding];
+  NSData *data = [[FBSDKTypeUtility stringValueOrNil:string] dataUsingEncoding:NSUTF8StringEncoding];
   if (!data) {
     if (errorRef != NULL) {
       *errorRef = nil;
@@ -132,7 +150,7 @@ static NSString *const FBSDK_BASICUTILITY_ANONYMOUSID_KEY = @"anon_id";
                                            error:(NSError *__autoreleasing *)errorRef
                             invalidObjectHandler:(FBSDKInvalidObjectHandler)invalidObjectHandler
 {
-  NSMutableString *queryString = [[NSMutableString alloc] init];
+  NSMutableString *queryString = [NSMutableString new];
   __block BOOL hasParameters = NO;
   if (dictionary) {
     NSMutableArray<NSString *> *keys = [dictionary.allKeys mutableCopy];
@@ -196,7 +214,7 @@ static NSString *const FBSDK_BASICUTILITY_ANONYMOUSID_KEY = @"anon_id";
 
 + (NSDictionary<NSString *, NSString *> *)dictionaryWithQueryString:(NSString *)queryString
 {
-  NSMutableDictionary<NSString *, NSString *> *result = [[NSMutableDictionary alloc] init];
+  NSMutableDictionary<NSString *, NSString *> *result = [NSMutableDictionary new];
   NSArray<NSString *> *parts = [queryString componentsSeparatedByString:@"&"];
 
   for (NSString *part in parts) {

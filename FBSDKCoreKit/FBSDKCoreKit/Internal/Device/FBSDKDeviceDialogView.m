@@ -63,6 +63,11 @@
 
  #pragma mark - Helpers
 
+- (UIColor *)logoColor
+{
+  return [UIColor colorWithRed:66.0 / 255.0 green:103.0 / 255.0 blue:178.0 / 255.0 alpha:1];
+}
+
 - (void)buildView
 {
   // This is a "static" view with just a cancel button so add all the constraints here
@@ -82,7 +87,7 @@
   const CGFloat kQRCodeSize = 200;
 
   // build the container view.
-  UIView *dialogView = [[UIView alloc] init];
+  UIView *dialogView = [UIView new];
   dialogView.layer.cornerRadius = 3;
   dialogView.translatesAutoresizingMaskIntoConstraints = NO;
   dialogView.clipsToBounds = YES;
@@ -94,7 +99,7 @@
   [dialogView.heightAnchor constraintEqualToConstant:kHeight].active = YES;
 
   // build the header container view (which will contain the logo and code).
-  UIView *dialogHeaderView = [[UIView alloc] init];
+  UIView *dialogHeaderView = [UIView new];
   dialogHeaderView.translatesAutoresizingMaskIntoConstraints = NO;
   dialogHeaderView.backgroundColor = [UIColor colorWithRed:226.0 / 255.0 green:231.0 / 255.0 blue:235.0 / 255.0 alpha:0.85];
   [dialogView addSubview:dialogHeaderView];
@@ -105,8 +110,8 @@
 
   // build the logo.
   CGSize imageSize = CGSizeMake(kLogoSize, kLogoSize);
-  FBSDKLogo *logoHelper = [[FBSDKLogo alloc] initWithColor:[UIColor colorWithRed:66.0 / 255.0 green:103.0 / 255.0 blue:178.0 / 255.0 alpha:1]];
-  UIImage *image = [logoHelper imageWithSize:imageSize];
+  FBSDKLogo *logoHelper = [FBSDKLogo new];
+  UIImage *image = [logoHelper imageWithSize:imageSize color:self.logoColor];
   image = [image resizableImageWithCapInsets:UIEdgeInsetsZero resizingMode:UIImageResizingModeStretch];
   UIImageView *imageView = [[UIImageView alloc] initWithImage:image];
   imageView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -127,9 +132,9 @@
   [_spinner startAnimating];
 
   // build the confirmation code (which replaces the spinner when the code is available).
-  _confirmationCodeLabel = [[UILabel alloc] init];
+  _confirmationCodeLabel = [UILabel new];
   _confirmationCodeLabel.translatesAutoresizingMaskIntoConstraints = NO;
-  _confirmationCodeLabel.textColor = logoHelper.color;
+  _confirmationCodeLabel.textColor = self.logoColor;
   _confirmationCodeLabel.font = [UIFont systemFontOfSize:kConfirmationCodeFontSize weight:UIFontWeightLight];
   _confirmationCodeLabel.textAlignment = NSTextAlignmentCenter;
   [_confirmationCodeLabel sizeToFit];
@@ -153,7 +158,7 @@
                                               constant:kQRCodeSize].active = YES;
 
   // build the instructions UILabel
-  UILabel *instructionLabel = [[UILabel alloc] init];
+  UILabel *instructionLabel = [UILabel new];
   instructionLabel.translatesAutoresizingMaskIntoConstraints = NO;
   NSString *localizedFormatString = NSLocalizedStringWithDefaultValue(
     @"DeviceLogin.LogInPrompt",
@@ -164,7 +169,7 @@
   );
   NSString *const deviceLoginURLString = @"facebook.com/device";
   NSString *instructionString = [NSString localizedStringWithFormat:localizedFormatString, deviceLoginURLString];
-  NSMutableParagraphStyle *instructionLabelParagraphStyle = [[NSMutableParagraphStyle alloc] init];
+  NSMutableParagraphStyle *instructionLabelParagraphStyle = [NSMutableParagraphStyle new];
   instructionLabelParagraphStyle.lineHeightMultiple = 1.1;
   NSMutableAttributedString *attributedString = [[NSMutableAttributedString alloc] initWithString:instructionString
                                                                                        attributes:@{ NSParagraphStyleAttributeName : instructionLabelParagraphStyle }];
@@ -185,7 +190,7 @@
                                             constant:kInstructionTextHorizontalMargin].active = YES;
 
   // build the container view for the cancel button.
-  UIView *buttonContainerView = [[UIView alloc] init];
+  UIView *buttonContainerView = [UIView new];
   buttonContainerView.translatesAutoresizingMaskIntoConstraints = NO;
   [dialogView addSubview:buttonContainerView];
   [NSLayoutConstraint constraintWithItem:buttonContainerView attribute:NSLayoutAttributeCenterX relatedBy:NSLayoutRelationEqual toItem:dialogView attribute:NSLayoutAttributeCenterX multiplier:1.0 constant:0].active = YES;

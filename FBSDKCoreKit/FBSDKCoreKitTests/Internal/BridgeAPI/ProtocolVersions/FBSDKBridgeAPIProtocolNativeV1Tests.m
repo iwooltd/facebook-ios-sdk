@@ -17,21 +17,23 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #import <Foundation/Foundation.h>
-#import <OCMock/OCMock.h>
 #import <XCTest/XCTest.h>
 
 #import <FBSDKCoreKit/FBSDKCoreKit.h>
 
 #import "FBSDKBridgeAPIProtocolNativeV1.h"
 #import "FBSDKCoreKit+Internal.h"
+#import "FBSDKCoreKitTests-Swift.h"
 
 @interface FBSDKBridgeAPIProtocolNativeV1Tests : XCTestCase
+
 @property (nonatomic, copy) NSString *actionID;
 @property (nonatomic, copy) NSString *methodName;
 @property (nonatomic, copy) NSString *methodVersion;
 @property (nonatomic, strong) FBSDKBridgeAPIProtocolNativeV1 *protocol;
-
 @property (nonatomic, copy) NSString *scheme;
+@property (nonatomic, strong) TestPasteboard *pasteboard;
+
 @end
 
 @implementation FBSDKBridgeAPIProtocolNativeV1Tests
@@ -45,6 +47,7 @@
   self.methodName = [NSUUID UUID].UUIDString;
   self.methodVersion = [NSUUID UUID].UUIDString;
   self.protocol = [[FBSDKBridgeAPIProtocolNativeV1 alloc] initWithAppScheme:self.scheme];
+  self.pasteboard = [TestPasteboard new];
 }
 
 - (void)testRequestURL
@@ -368,13 +371,12 @@
 
 - (void)testRequestParametersWithDataPasteboard
 {
-  id pasteboard = [OCMockObject mockForClass:[UIPasteboard class]];
   NSString *pasteboardName = [NSUUID UUID].UUIDString;
+  self.pasteboard.name = pasteboardName;
   NSData *data = [self _testData];
-  [[[pasteboard stub] andReturn:pasteboardName] name];
-  [[pasteboard expect] setData:data forPasteboardType:@"com.facebook.Facebook.FBAppBridgeType"];
+
   FBSDKBridgeAPIProtocolNativeV1 *protocol = [[FBSDKBridgeAPIProtocolNativeV1 alloc] initWithAppScheme:self.scheme
-                                                                                            pasteboard:pasteboard
+                                                                                            pasteboard:self.pasteboard
                                                                                    dataLengthThreshold:0
                                                                                         includeAppIcon:NO];
   NSDictionary *parameters = @{
@@ -390,7 +392,8 @@
                                             parameters:parameters
                                                  error:&error];
   XCTAssertNil(error);
-  [pasteboard verify];
+  XCTAssertEqualObjects(self.pasteboard.capturedData, data);
+  XCTAssertEqualObjects(self.pasteboard.capturedPasteboardType, @"com.facebook.Facebook.FBAppBridgeType");
   NSString *expectedPrefix = [[NSString alloc] initWithFormat:@"%@://dialog/%@?", self.scheme, self.methodName];
   XCTAssertTrue([[requestURL absoluteString] hasPrefix:expectedPrefix]);
   // Due to the non-deterministic order of Dictionary->JSON serialization, we cannot do string comparisons to verify.
@@ -405,14 +408,12 @@
 
 - (void)testRequestParametersWithImagePasteboard
 {
-  id pasteboard = [OCMockObject mockForClass:[UIPasteboard class]];
   NSString *pasteboardName = [NSUUID UUID].UUIDString;
+  self.pasteboard.name = pasteboardName;
   UIImage *image = [self _testImage];
   NSData *data = [self _testDataWithImage:image];
-  [[[pasteboard stub] andReturn:pasteboardName] name];
-  [[pasteboard expect] setData:data forPasteboardType:@"com.facebook.Facebook.FBAppBridgeType"];
   FBSDKBridgeAPIProtocolNativeV1 *protocol = [[FBSDKBridgeAPIProtocolNativeV1 alloc] initWithAppScheme:self.scheme
-                                                                                            pasteboard:pasteboard
+                                                                                            pasteboard:self.pasteboard
                                                                                    dataLengthThreshold:0
                                                                                         includeAppIcon:NO];
   NSDictionary *parameters = @{
@@ -428,7 +429,8 @@
                                             parameters:parameters
                                                  error:&error];
   XCTAssertNil(error);
-  [pasteboard verify];
+  XCTAssertEqualObjects(self.pasteboard.capturedData, data);
+  XCTAssertEqualObjects(self.pasteboard.capturedPasteboardType, @"com.facebook.Facebook.FBAppBridgeType");
   NSString *expectedPrefix = [[NSString alloc] initWithFormat:@"%@://dialog/%@?", self.scheme, self.methodName];
   XCTAssertTrue([[requestURL absoluteString] hasPrefix:expectedPrefix]);
   // Due to the non-deterministic order of Dictionary->JSON serialization, we cannot do string comparisons to verify.
@@ -441,9 +443,11 @@
   XCTAssertEqualObjects(methodArgs, expectedMethodArgs);
 }
 
+// MARK: - Helpers
+
 - (NSDictionary *)_encodeQueryParameters:(NSDictionary *)queryParameters
 {
-  NSMutableDictionary *encoded = [[NSMutableDictionary alloc] init];
+  NSMutableDictionary *encoded = [NSMutableDictionary new];
   [queryParameters enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
     if (![FBSDKBasicUtility dictionary:encoded setJSONStringForObject:obj forKey:key error:NULL]) {
       [FBSDKTypeUtility dictionary:encoded setObject:obj forKey:key];

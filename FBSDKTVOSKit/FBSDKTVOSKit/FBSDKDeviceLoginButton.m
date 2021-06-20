@@ -23,6 +23,13 @@
 #else
  #import "FBSDKCoreKit+Internal.h"
 #endif
+
+#if defined FBSDK_SWIFT_PACKAGE
+@import FBSDKCoreKit_Basics;
+#else
+ #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
+#endif
+
 #import "FBSDKDeviceLoginViewController.h"
 
 @interface FBSDKDeviceLoginButton () <FBSDKDeviceLoginViewControllerDelegate>
@@ -172,7 +179,7 @@
     [alertController addAction:[UIAlertAction actionWithTitle:cancelTitle style:UIAlertActionStyleCancel handler:NULL]];
     [parentViewController presentViewController:alertController animated:YES completion:NULL];
   } else {
-    FBSDKDeviceLoginViewController *vc = [[FBSDKDeviceLoginViewController alloc] init];
+    FBSDKDeviceLoginViewController *vc = [FBSDKDeviceLoginViewController new];
     vc.delegate = self;
     vc.permissions = self.permissions;
     vc.redirectURL = self.redirectURL;
@@ -235,10 +242,10 @@
       FBSDKGraphRequest *request = [[FBSDKGraphRequest alloc] initWithGraphPath:@"me?fields=id,name"
                                                                      parameters:nil
                                                                           flags:FBSDKGraphRequestFlagDisableErrorRecovery];
-      [request startWithCompletionHandler:^(FBSDKGraphRequestConnection *connection, id result, NSError *error) {
-        NSString *userID = [FBSDKTypeUtility stringValue:result[@"id"]];
+      [request startWithCompletion:^(id<FBSDKGraphRequestConnecting> connection, id result, NSError *error) {
+        NSString *userID = [FBSDKTypeUtility coercedToStringValue:result[@"id"]];
         if (!error && [[FBSDKAccessToken currentAccessToken].userID isEqualToString:userID]) {
-          self->_userName = [FBSDKTypeUtility stringValue:result[@"name"]];
+          self->_userName = [FBSDKTypeUtility coercedToStringValue:result[@"name"]];
           self->_userID = userID;
         }
       }];
